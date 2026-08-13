@@ -1,6 +1,24 @@
 import path from "node:path";
 import "dotenv/config";
-import { defineConfig, env } from "prisma/config";
+import { defineConfig } from "prisma/config";
+
+/**
+ * URL que usan los comandos de migración.
+ *
+ * Se lee de forma tolerante a propósito. `prisma generate` corre en el
+ * `postinstall` de cada build y NO necesita base de datos, pero si aquí se usa
+ * `env()` de Prisma, la variable ausente lanza y el despliegue entero se cae
+ * antes de compilar. Con el respaldo, generar el cliente nunca depende de tener
+ * credenciales; los comandos que sí tocan la base fallan solos y con un
+ * mensaje claro si la variable falta.
+ *
+ * Orden: DIRECT_URL (pooler de sesión, el correcto para migrar) →
+ * DATABASE_URL → marcador inválido evidente.
+ */
+const urlMigraciones =
+  process.env.DIRECT_URL ??
+  process.env.DATABASE_URL ??
+  "postgresql://sin-configurar:sin-configurar@localhost:5432/sin-configurar";
 
 export default defineConfig({
   schema: path.join("prisma", "schema.prisma"),
@@ -9,8 +27,6 @@ export default defineConfig({
     seed: "npx tsx prisma/seed.ts",
   },
   datasource: {
-    // Migraciones por el pooler en modo sesión. El pooler transaccional
-    // (6543) no soporta las sentencias que Prisma Migrate necesita.
-    url: env("DIRECT_URL"),
+    url: urlMigraciones,
   },
 });
