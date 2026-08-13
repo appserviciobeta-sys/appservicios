@@ -9,6 +9,58 @@ interno para operar el piloto por WhatsApp **sin perder los datos**.
 > verificación, incidente y calificación queda estructurado desde el servicio #1.
 > El activo no son los servicios: es el grafo de confianza que dejan atrás.
 
+## Despliegue
+
+Base de datos: **Supabase Postgres**. Repositorio: `appserviciobeta-sys/appservicios`.
+Hosting: **Vercel**.
+
+### 1. Subir el código (una sola vez)
+
+El remoto ya está conectado y el commit hecho. Falta autenticarte:
+
+```bash
+gh auth login
+```
+
+```bash
+git push -u origin main
+```
+
+Si no tienes GitHub CLI, sirve un token personal con permiso `repo`: Git lo
+pedirá como contraseña la primera vez y lo guardará.
+
+### 2. Variables de entorno en Vercel
+
+Settings → Environment Variables. **`DIRECT_URL` es obligatoria incluso para
+compilar**: `prisma generate` corre en `postinstall` y lee `prisma.config.ts`,
+que la exige. Sin ella el build falla antes de empezar.
+
+| Variable | Para qué |
+|---|---|
+| `DATABASE_URL` | Runtime. Pooler transaccional, puerto **6543**, con `?pgbouncer=true` |
+| `DIRECT_URL` | Migraciones y build. Pooler de sesión, puerto **5432** |
+| `NEXT_PUBLIC_SUPABASE_URL` | Cliente de Supabase |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Clave pública |
+| `SUPABASE_SERVICE_ROLE_KEY` | Subir y firmar evidencia. **Solo servidor** |
+| `NEXT_PUBLIC_URL_BASE` | Dominio del despliegue, para los enlaces de la puerta |
+
+### 3. Bucket de evidencia
+
+En Supabase → Storage, crear un bucket llamado **`evidencia`** y dejarlo
+**privado**. Son fotos del interior de casas ajenas: se muestran con URLs
+firmadas de una hora, no se publican. Sin `SUPABASE_SERVICE_ROLE_KEY` las fotos
+caen a disco local, que en Vercel se borra entre invocaciones.
+
+### 4. Migraciones
+
+```bash
+npm run db:deploy
+```
+
+Se corre desde local contra Supabase. No se ejecutan en el build de Vercel a
+propósito: una migración que corre sola en cada despliegue es una forma cómoda
+de perder datos.
+
 ## Correr el proyecto
 
 ```bash
