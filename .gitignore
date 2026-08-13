@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# cliente generado por Prisma: se regenera en cada instalación (postinstall)
+/src/generated
+
+# evidencia subida en local. En producción vive en Supabase Storage.
+/public/subidas
+
+# base de datos local del piloto anterior
+*.db
+*.db-journal

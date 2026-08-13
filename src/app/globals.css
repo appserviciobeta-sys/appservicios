@@ -1,26 +1,317 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ===========================================================================
+   Sistema visual — "conserjería"
+   ---------------------------------------------------------------------------
+   La ergonomía de una app de domicilios (móvil primero, grilla de categorías,
+   tarjetas grandes, precio siempre a la vista) ejecutada con contención: un
+   solo acento, negro para la acción, superficies limpias y cero decoración.
+   Rappi resuelve el "cómo se usa". La sobriedad resuelve el "de quién me fío".
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+   Los nombres de los tokens vienen del sistema anterior y se conservan a
+   propósito: cambiar los valores reviste toda la app sin tocar cada página.
+   =========================================================================== */
+
+:root {
+  --papel: #fafaf8;
+  --papel-hondo: #f1f1ee;
+  --superficie: #ffffff;
+  --regla: #e8e8e4;
+  --regla-fuerte: #d3d3cd;
+
+  --tinta: #14161a;
+  --tinta-media: #565b63;
+  --tinta-suave: #8a9099;
+
+  /* Un único acento: verde pino. Es el color de "esto está comprobado". */
+  --sello: #10614a;
+  --sello-tenue: #e7f1ed;
+  --verificado: #10614a;
+  --verificado-tenue: #e7f1ed;
+
+  --aviso: #8a6516;
+  --aviso-tenue: #fbf1dc;
+  --alerta: #9b2c2c;
+  --alerta-tenue: #fbeaea;
+
+  --radio: 14px;
+  --radio-sm: 10px;
+  --radio-lg: 20px;
+
+  --sombra: 0 1px 2px rgba(20, 22, 26, 0.04), 0 10px 28px -16px rgba(20, 22, 26, 0.18);
+  --sombra-alta: 0 2px 4px rgba(20, 22, 26, 0.05), 0 20px 44px -20px rgba(20, 22, 26, 0.24);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --papel: #0c0d0f;
+    --papel-hondo: #15171a;
+    --superficie: #16181b;
+    --regla: #24272b;
+    --regla-fuerte: #343840;
+
+    --tinta: #f2f3f4;
+    --tinta-media: #a8aeb6;
+    --tinta-suave: #737a83;
+
+    --sello: #4fbf95;
+    --sello-tenue: #11291f;
+    --verificado: #4fbf95;
+    --verificado-tenue: #11291f;
+
+    --aviso: #e3b25e;
+    --aviso-tenue: #2b2110;
+    --alerta: #ef8f8f;
+    --alerta-tenue: #2d1414;
+
+    --sombra: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px -16px rgba(0, 0, 0, 0.7);
+    --sombra-alta: 0 2px 4px rgba(0, 0, 0, 0.5), 0 20px 44px -20px rgba(0, 0, 0, 0.8);
   }
 }
 
+@theme inline {
+  --color-papel: var(--papel);
+  --color-papel-hondo: var(--papel-hondo);
+  --color-superficie: var(--superficie);
+  --color-regla: var(--regla);
+  --color-regla-fuerte: var(--regla-fuerte);
+  --color-tinta: var(--tinta);
+  --color-tinta-media: var(--tinta-media);
+  --color-tinta-suave: var(--tinta-suave);
+  --color-sello: var(--sello);
+  --color-sello-tenue: var(--sello-tenue);
+  --color-verificado: var(--verificado);
+  --color-verificado-tenue: var(--verificado-tenue);
+  --color-aviso: var(--aviso);
+  --color-aviso-tenue: var(--aviso-tenue);
+  --color-alerta: var(--alerta);
+  --color-alerta-tenue: var(--alerta-tenue);
+
+  --font-texto: var(--fuente-texto), system-ui, sans-serif;
+  --radius-marca: var(--radio);
+  --radius-marca-lg: var(--radio-lg);
+}
+
+/* --- Base ---------------------------------------------------------------- */
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--papel);
+  color: var(--tinta);
+  font-family: var(--fuente-texto), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.011em;
+}
+
+::selection {
+  background: var(--sello);
+  color: #fff;
+}
+
+/* --- Tipografía ---------------------------------------------------------- */
+/* Una sola familia. La jerarquía la hace el peso y el tamaño, no el contraste
+   entre fuentes: es lo que separa lo sobrio de lo decorado. */
+
+.titular {
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.04;
+}
+
+.cifra {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.rotulo {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  color: var(--tinta-suave);
+}
+
+/* --- Superficies --------------------------------------------------------- */
+
+.ficha {
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radio);
+}
+
+.ficha-alta {
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radio-lg);
+  box-shadow: var(--sombra);
+}
+
+/* El resumen de precio: la pieza que el cliente mira más veces. */
+.recibo {
+  background: var(--superficie);
+  border: 1px solid var(--regla);
+  border-radius: var(--radio-lg);
+  box-shadow: var(--sombra);
+}
+
+.troquel {
+  border-top: 1px solid var(--regla);
+}
+
+/* Tarjeta tocable: el gesto de app de domicilios, sin estridencia. */
+.tocable {
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.tocable:hover {
+  border-color: var(--regla-fuerte);
+  box-shadow: var(--sombra);
+}
+
+.tocable:active {
+  transform: scale(0.988);
+}
+
+/* --- Distintivos --------------------------------------------------------- */
+/* Píldora limpia. Antes era un sello con doble filete; ahora la señal de
+   confianza la da el color y la palabra, no el adorno. */
+
+.sello {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+/* Se conserva por compatibilidad; ya no rota nada. */
+.sello-girado {
+  transform: none;
+}
+
+/* --- Formularios --------------------------------------------------------- */
+
+input,
+select,
+textarea {
+  color: var(--tinta);
+  background: var(--superficie);
+  caret-color: var(--sello);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--sello);
+  outline-offset: 1px;
+}
+
+::placeholder {
+  color: var(--tinta-suave);
+  opacity: 1;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--sello);
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+/* --- Movimiento ---------------------------------------------------------- */
+
+@keyframes surgir {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes asomar {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes subir-barra {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+.surgir {
+  animation: surgir 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--retraso, 0ms);
+}
+
+/* Se conserva el nombre; ahora es un asomo, no un sello que cae. */
+.estampar {
+  animation: asomar 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--retraso, 0ms);
+}
+
+.barra-precio {
+  animation: subir-barra 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .surgir,
+  .estampar,
+  .barra-precio {
+    animation: none;
+  }
+}
+
+/* --- Enlaces ------------------------------------------------------------- */
+
+.enlace {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1px;
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  transition: background-size 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.enlace:hover {
+  background-size: 100% 1px;
+}
+
+/* --- Utilidades ---------------------------------------------------------- */
+
+/* Deja aire bajo la barra fija de precio en móvil. */
+.con-barra {
+  padding-bottom: 7.5rem;
+}
+
+@media (min-width: 1024px) {
+  .con-barra {
+    padding-bottom: 0;
+  }
+}
+
+.scroll-lateral {
+  scrollbar-width: none;
+}
+
+.scroll-lateral::-webkit-scrollbar {
+  display: none;
 }

@@ -1,0 +1,671 @@
+// Plataforma de Servicios y Talento Verificado
+// Modelo de datos del MVP Concierge.
+//
+// Regla de diseño: el piloto se coordina por WhatsApp, pero NADA se pierde.
+// Cada solicitud, match, precio, verificación, incidente y calificación queda
+// estructurado desde el servicio #1, porque el activo del proyecto no son los
+// servicios: es el grafo de confianza que dejan atrás.
+//
+// Los dos lados del mercado son entidades de primera clase y cada uno tiene su
+// propio registro, su propia verificación y su propia reputación (§8, §31, §32).
+//
+// Los campos de estado son String y sus valores válidos viven en
+// src/lib/constants.ts. Se mantienen como String a propósito: un estado nuevo
+// en un piloto no debería costar una migración de tipo enum en producción.
+//
+// Base de datos: Postgres en Supabase. La app corre contra el pooler en modo
+// transacción; las migraciones usan el pooler en modo sesión (DIRECT_URL).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// CATÁLOGO — qué vendemos y a qué precio
+// ---------------------------------------------------------------------------
+
+model Category {
+  id     String  @id @default(cuid())
+  slug   String  @unique
+  nombre String
+  grupo  String // HOGAR | TECNICO | VEHICULO | EMPRESA
+  /// Riesgo base del oficio. Define cuánto control exige (§51 Risk Engine).
+  riesgo String  @default("BAJO") // BAJO | MEDIO | ALTO
+  orden  Int     @default(0)
+  activa Boolean @default(true)
+
+  skills       Skill[]
+  serviceTypes ServiceType[]
+  requests     ServiceRequest[]
+}
+
+/// Habilidad atómica. El matching NO se hace contra "electricista" sino contra
+/// "instalación de tomacorrientes" (§10 Skill Profile).
+model Skill {
+  id                    String  @id @default(cuid())
+  categoryId            String
+  slug                  String  @unique
+  nombre                String
+  riesgo                String  @default("BAJO")
+  requiereCertificacion Boolean @default(false)
+
+  category      Category            @relation(fields: [categoryId], references: [id])
+  profesionales ProfessionalSkill[]
+  serviceTypes  ServiceTypeSkill[]
+
+  @@index([categoryId])
+}
+
+/// Un servicio vendible con precio y duración conocidos (§23 Tipos de precio).
+model ServiceType {
+  id          String @id @default(cuid())
+  categoryId  String
+  slug        String @unique
+  nombre      String
+  descripcion String @default("")
+
+  /// FIJO | CALCULADO | DIAGNOSTICO
+  modeloPrecio String @default("FIJO")
+  precioBase   Int    @default(0) // COP
+  unidadBase   String @default("servicio")
+
+  duracionMinMin Int @default(60)
+  duracionMaxMin Int @default(120)
+
+  /// % del precio al cliente que recibe el profesional (§42 Monetización).
+  porcentajeProfesional Int @default(80)
+
+  /// Ventana de garantía en días. 0 = sin garantía (§34).
+  garantiaDias Int     @default(0)
+  riesgo       String  @default("BAJO")
+  activo       Boolean @default(true)
+
+  category   Category           @relation(fields: [categoryId], references: [id])
+  skills     ServiceTypeSkill[]
+  priceRules PriceRule[]
+  requests   ServiceRequest[]
+  quotes     Quote[]
+  orders     ServiceOrder[]
+
+  @@index([categoryId])
+}
+
+model ServiceTypeSkill {
+  id            String  @id @default(cuid())
+  serviceTypeId String
+  skillId       String
+  obligatoria   Boolean @default(true)
+
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+  skill       Skill       @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceTypeId, skillId])
+}
+
+/// Modificadores del Price Engine (§22). Cada regla es un renglón explicable
+/// en la cotización: el cliente siempre ve de dónde sale el total.
+model PriceRule {
+  id            String @id @default(cuid())
+  serviceTypeId String
+  codigo        String
+  etiqueta      String
+  /// ADICION (monto fijo) | POR_UNIDAD (monto * cantidad) | MULTIPLICADOR (%)
+  tipo          String @default("ADICION")
+  valor         Int    @default(0)
+  /// Campo del cuestionario que activa la regla (ej: "banos", "horno").
+  campo         String @default("")
+  /// Valor que debe tener el campo para activar la regla. Vacío = cualquiera > umbral.
+  valorEsperado String @default("")
+  /// Solo POR_UNIDAD: cantidad ya incluida en el precio base.
+  /// Ej: base cubre 80 m², umbral 80 → se cobran solo los m² por encima.
+  umbral        Int    @default(0)
+  /// Minutos que este extra le agrega al servicio. El tiempo también es precio.
+  minutos       Int    @default(0)
+  orden         Int    @default(0)
+
+  serviceType ServiceType @relation(fields: [serviceTypeId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceTypeId, codigo])
+}
+
+// ---------------------------------------------------------------------------
+// OFERTA — profesionales, habilidades verificadas y documentos
+// ---------------------------------------------------------------------------
+
+model Professional {
+  id              String    @id @default(cuid())
+  codigo          String    @unique
+  nombre          String
+  tipoDocumento   String    @default("CC")
+  documento       String    @unique
+  fechaNacimiento DateTime?
+  celular         String
+  email           String    @default("")
+  ciudad          String
+  /// Zonas de operación separadas por coma (SQLite no soporta arrays).
+  zonas           String    @default("")
+  fotoUrl         String    @default("")
+
+  /// BORRADOR | EN_VERIFICACION | ACTIVO | SUSPENDIDO | BLOQUEADO
+  estado String @default("BORRADOR")
+  /// INICIAL | PRO | EXPERT | ELITE (§37)
+  nivel  String @default("INICIAL")
+
+  /// Trust Score calculado (§31/§50). Se recalcula, nunca se escribe a mano.
+  trustScore    Int    @default(50)
+  trustDesglose String @default("{}")
+
+  aniosExperiencia Int    @default(0)
+  experienciaTexto String @default("")
+  notasInternas    String @default("")
+
+  /// Consentimiento de tratamiento de datos (§47 validaciones legales).
+  aceptaDatos   Boolean   @default(false)
+  aceptaDatosEn DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skills            ProfessionalSkill[]
+  documentos        ProfessionalDocument[]
+  disponibilidad    Availability[]
+  candidaturas      MatchCandidate[]
+  ordenes           ServiceOrder[]
+  reemplazosSalida  Replacement[]          @relation("ProfesionalSaliente")
+  reemplazosEntrada Replacement[]          @relation("ProfesionalEntrante")
+  trustSnapshots    TrustSnapshot[]
+
+  @@index([estado])
+  @@index([ciudad])
+}
+
+/// El corazón del §10: una habilidad declarada NO es una habilidad verificada.
+model ProfessionalSkill {
+  id             String @id @default(cuid())
+  professionalId String
+  skillId        String
+
+  /// DECLARADA | EN_VERIFICACION | VERIFICADA | CERTIFICADA | NO_HABILITADA (§16)
+  estado String @default("DECLARADA")
+  /// Cómo se comprobó: EVIDENCIA_FOTO | REFERENCIA | PRUEBA_CONOCIMIENTO |
+  /// PRUEBA_PRACTICA | CERTIFICADO_ENTIDAD | HISTORIAL_PLATAFORMA (§12/§13)
+  fuente String @default("")
+  nota   String @default("")
+
+  verificadoPor String?
+  verificadoEn  DateTime?
+  createdAt     DateTime  @default(now())
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+  skill        Skill        @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([professionalId, skillId])
+  @@index([estado])
+}
+
+/// §48: cada documento debe reducir un riesgo concreto. El motivo es obligatorio.
+model ProfessionalDocument {
+  id             String @id @default(cuid())
+  professionalId String
+  /// CEDULA | RUT | ARL | EPS | CERT_SST | CERT_TECNICA | ANTECEDENTES | REFERENCIA
+  tipo           String
+  /// Qué riesgo concreto reduce este documento. Sin motivo no se pide.
+  motivoRiesgo   String
+  numero         String @default("")
+  archivoUrl     String @default("")
+
+  /// PENDIENTE | EN_REVISION | VIGENTE | VENCIDO | RECHAZADO
+  estado String @default("PENDIENTE")
+
+  emitidoEn     DateTime?
+  venceEn       DateTime?
+  verificadoPor String?
+  verificadoEn  DateTime?
+  createdAt     DateTime  @default(now())
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId])
+  @@index([estado, venceEn])
+}
+
+model Availability {
+  id             String @id @default(cuid())
+  professionalId String
+  diaSemana      Int // 0 = domingo
+  horaInicio     Int // minutos desde medianoche
+  horaFin        Int
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, diaSemana])
+}
+
+// ---------------------------------------------------------------------------
+// DEMANDA — clientes registrados y solicitudes
+// ---------------------------------------------------------------------------
+
+/// El cliente NO es un dato incidental de la solicitud: es una cuenta con su
+/// propio registro, su historial y su reputación (§32). La confianza va en los
+/// dos sentidos, así que el cliente también se puede bloquear.
+model Client {
+  id     String @id @default(cuid())
+  codigo String @unique
+  /// PERSONA | EMPRESA (§39 B2B)
+  tipo   String @default("PERSONA")
+
+  nombre    String
+  celular   String @unique
+  email     String @default("")
+  ciudad    String @default("")
+  zona      String @default("")
+  direccion String @default("")
+
+  /// Solo empresas (§39–§41).
+  razonSocial    String @default("")
+  nit            String @default("")
+  contactoNombre String @default("")
+  contactoCargo  String @default("")
+  /// Cuántas sedes o locales atiende. Define si el B2B tiene sentido.
+  sedes          Int    @default(1)
+
+  /// ACTIVO | EN_REVISION | BLOQUEADO
+  estado String @default("ACTIVO")
+  /// WEB_REGISTRO | SOLICITUD | WHATSAPP | REFERIDO | B2B
+  origen String @default("SOLICITUD")
+
+  /// §32: la confianza funciona en ambos sentidos.
+  trustScore    Int    @default(70)
+  notasInternas String @default("")
+
+  /// Consentimiento de tratamiento de datos (§47).
+  aceptaDatos   Boolean   @default(false)
+  aceptaDatosEn DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  requests ServiceRequest[]
+  ordenes  ServiceOrder[]
+  sedesB2B ClientSite[]
+
+  @@index([tipo])
+  @@index([estado])
+}
+
+/// Sedes de un cliente empresa. Sin esto no existe el "departamento externo de
+/// servicios" del §39: la demanda B2B es por local, no por empresa.
+model ClientSite {
+  id        String  @id @default(cuid())
+  clientId  String
+  nombre    String
+  direccion String
+  zona      String  @default("")
+  ciudad    String  @default("")
+  contacto  String  @default("")
+  celular   String  @default("")
+  activa    Boolean @default(true)
+
+  client   Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  requests ServiceRequest[]
+
+  @@index([clientId])
+}
+
+/// Todo entra por aquí: WhatsApp, landing, llamada. Texto libre + clasificación.
+model ServiceRequest {
+  id       String @id @default(cuid())
+  codigo   String @unique
+  clientId String
+  siteId   String?
+
+  /// Lo que el cliente dijo, sin editar. Materia prima para clasificar (§20).
+  textoCliente String
+  /// WEB | WHATSAPP | LLAMADA | REFERIDO | B2B
+  canal        String @default("WEB")
+
+  categoryId    String?
+  serviceTypeId String?
+
+  /// AHORA | HOY | PROGRAMADO | RECURRENTE (§6)
+  urgencia     String    @default("PROGRAMADO")
+  fechaDeseada DateTime?
+  direccion    String    @default("")
+  zona         String    @default("")
+
+  /// NUEVA | CLASIFICADA | COTIZADA | ACEPTADA | ASIGNADA | CERRADA | PERDIDA
+  estado String @default("NUEVA")
+  /// Por qué se perdió. Sin esto no se aprende nada del funnel.
+  motivoPerdida String @default("")
+  riesgo        String @default("BAJO")
+
+  respuestas    String @default("{}")
+  notasInternas String @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client      Client           @relation(fields: [clientId], references: [id])
+  site        ClientSite?      @relation(fields: [siteId], references: [id])
+  category    Category?        @relation(fields: [categoryId], references: [id])
+  serviceType ServiceType?     @relation(fields: [serviceTypeId], references: [id])
+  quotes      Quote[]
+  candidatos  MatchCandidate[]
+  ordenes     ServiceOrder[]
+
+  @@index([estado])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// PRECIO — cotización explicable renglón por renglón
+// ---------------------------------------------------------------------------
+
+model Quote {
+  id            String @id @default(cuid())
+  requestId     String
+  serviceTypeId String
+
+  precioTotal         Int
+  precioProfesional   Int
+  comision            Int
+  duracionEstimadaMin Int @default(60)
+
+  /// BORRADOR | ENVIADA | ACEPTADA | RECHAZADA | VENCIDA
+  estado      String @default("BORRADOR")
+  generadoPor String @default("PRICE_ENGINE")
+
+  createdAt DateTime @default(now())
+
+  request     ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  serviceType ServiceType    @relation(fields: [serviceTypeId], references: [id])
+  lineas      QuoteLine[]
+  ordenes     ServiceOrder[]
+
+  @@index([requestId])
+}
+
+model QuoteLine {
+  id       String @id @default(cuid())
+  quoteId  String
+  codigo   String
+  etiqueta String
+  monto    Int
+  orden    Int    @default(0)
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// MATCHING — se guardan también los candidatos que NO ganaron
+// ---------------------------------------------------------------------------
+
+/// §21. Guardar los rechazos es tan valioso como guardar las asignaciones:
+/// es la única forma de saber por qué el matching falla.
+model MatchCandidate {
+  id             String @id @default(cuid())
+  requestId      String
+  professionalId String
+
+  score    Int
+  desglose String @default("{}")
+  /// SUGERIDO | CONTACTADO | ACEPTO | RECHAZO | NO_RESPONDIO | DESCARTADO
+  estado   String @default("SUGERIDO")
+  motivo   String @default("")
+
+  createdAt DateTime @default(now())
+
+  request      ServiceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  professional Professional   @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, professionalId])
+  @@index([estado])
+}
+
+// ---------------------------------------------------------------------------
+// EJECUCIÓN — el servicio real
+// ---------------------------------------------------------------------------
+
+model ServiceOrder {
+  id             String  @id @default(cuid())
+  codigo         String  @unique
+  requestId      String
+  quoteId        String?
+  clientId       String
+  professionalId String?
+  serviceTypeId  String
+
+  /// ASIGNADA | CONFIRMADA | EN_CAMINO | EN_SITIO | EN_EJECUCION | EJECUTADA |
+  /// CALIFICADA | CERRADA | CANCELADA_CLIENTE | CANCELADA_PROFESIONAL | NO_SHOW
+  estado String @default("ASIGNADA")
+
+  /// §17 — Verificación de doble sentido en la puerta.
+  ///
+  /// El documento pide solo que el cliente entregue un código. Eso prueba que
+  /// el profesional llegó al sitio correcto, pero NO le prueba al cliente que
+  /// quien tocó la puerta es el que mandamos. Por eso hay dos secretos:
+  ///
+  ///   palabraSeguridad → la ve el PROFESIONAL, la verifica el CLIENTE.
+  ///   codigoServicio   → lo tiene el CLIENTE, lo digita el PROFESIONAL.
+  ///
+  /// Primero el profesional se identifica; solo entonces el cliente suelta el
+  /// código. Nadie entra a una casa antes del primer paso.
+  codigoServicio   String
+  palabraSeguridad String @default("")
+
+  /// Enlaces sin contraseña que se mandan por WhatsApp. El piloto no puede
+  /// exigirle a un plomero que instale una app y cree una cuenta.
+  tokenProfesional String? @unique
+  tokenCliente     String? @unique
+
+  programadoPara  DateTime?
+  llegadaEsperada DateTime?
+
+  /// Trazabilidad de llegada: salida, arribo y arranque son momentos distintos
+  /// y el §41 mide cada uno por separado.
+  enCaminoAt DateTime?
+  llegadaAt  DateTime?
+  checkInAt  DateTime?
+  checkInLat Float?
+  checkInLng Float?
+  checkOutAt DateTime?
+  checkOutLat Float?
+  checkOutLng Float?
+
+  /// El cliente cierra el servicio, no el profesional: mientras no confirme,
+  /// el pago no se libera (§30).
+  confirmadoClienteAt DateTime?
+  /// OK | RECLAMO
+  confirmacionCliente String @default("")
+
+  precioCliente   Int    @default(0)
+  pagoProfesional Int    @default(0)
+  comision        Int    @default(0)
+  costoMateriales Int    @default(0)
+  /// PENDIENTE | AUTORIZADO | COBRADO | LIQUIDADO | REEMBOLSADO (§30)
+  estadoPago      String @default("PENDIENTE")
+
+  garantiaHasta DateTime?
+  notasInternas String    @default("")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  request      ServiceRequest @relation(fields: [requestId], references: [id])
+  quote        Quote?         @relation(fields: [quoteId], references: [id])
+  client       Client         @relation(fields: [clientId], references: [id])
+  professional Professional?  @relation(fields: [professionalId], references: [id])
+  serviceType  ServiceType    @relation(fields: [serviceTypeId], references: [id])
+
+  cambiosAlcance ScopeChange[]
+  materiales     MaterialItem[]
+  evidencias     Evidence[]
+  calificaciones Rating[]
+  incidentes     Incident[]
+  reemplazos     Replacement[]
+
+  @@index([estado])
+  @@index([professionalId])
+  @@index([createdAt])
+}
+
+/// §27: no debe existir sobrecosto no aprobado. Todo cambio pasa por aquí.
+model ScopeChange {
+  id             String @id @default(cuid())
+  serviceOrderId String
+
+  descripcion        String
+  fotoUrl            String @default("")
+  precioAdicional    Int    @default(0)
+  minutosAdicionales Int    @default(0)
+
+  /// SOLICITADO | APROBADO | RECHAZADO
+  estado String @default("SOLICITADO")
+
+  solicitadoAt DateTime  @default(now())
+  resueltoAt   DateTime?
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId])
+}
+
+model MaterialItem {
+  id             String  @id @default(cuid())
+  serviceOrderId String
+  descripcion    String
+  cantidad       Float   @default(1)
+  unidad         String  @default("und")
+  precioUnitario Int     @default(0)
+  proveedor      String  @default("")
+  aprobado       Boolean @default(false)
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId])
+}
+
+model Evidence {
+  id             String   @id @default(cuid())
+  serviceOrderId String
+  /// ANTES | DESPUES | INCIDENTE | DOCUMENTO | CHECKIN
+  tipo           String
+  url            String   @default("")
+  nota           String   @default("")
+  /// PROFESIONAL | CLIENTE | OPERADOR — quién la aportó importa en un reclamo.
+  subidoPor      String   @default("OPERADOR")
+  createdAt      DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId])
+}
+
+/// §31: no depender solo de estrellas. Se miden dimensiones separadas.
+model Rating {
+  id             String @id @default(cuid())
+  serviceOrderId String
+  /// CLIENTE | PROFESIONAL — ambos califican (§32)
+  emisor         String
+
+  calidad      Int?
+  puntualidad  Int?
+  comunicacion Int?
+  comentario   String  @default("")
+  recomendaria Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceOrderId, emisor])
+}
+
+model Incident {
+  id             String @id @default(cuid())
+  codigo         String @unique
+  serviceOrderId String
+
+  /// CLIENTE | PROFESIONAL | PLATAFORMA
+  reportadoPor String
+  /// DANO | CALIDAD | COBRO | CONDUCTA | INCUMPLIMIENTO | SEGURIDAD | OTRO (§33)
+  tipo         String
+  severidad    String @default("BAJO")
+  descripcion  String
+
+  /// ABIERTO | EN_INVESTIGACION | RESUELTO | CERRADO_SIN_ACCION | ESCALADO
+  estado     String @default("ABIERTO")
+  resolucion String @default("")
+  /// Cuánto costó a la plataforma. Alimenta la reserva de garantía real.
+  costoPlataforma Int @default(0)
+  /// A quién se le atribuye: PROFESIONAL | CLIENTE | PLATAFORMA | NINGUNO.
+  /// Sin esto, el Trust castiga a quien no tuvo la culpa.
+  responsable     String @default("NINGUNO")
+
+  abiertoAt DateTime  @default(now())
+  cerradoAt DateTime?
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([estado, severidad])
+}
+
+/// §35: el diferenciador más caro. Se mide el tiempo real de reemplazo.
+model Replacement {
+  id             String @id @default(cuid())
+  serviceOrderId String
+
+  motivo                String
+  profesionalSalienteId String?
+  profesionalEntranteId String?
+  minutosParaReemplazo  Int?
+  /// SOLICITADO | RESUELTO | FALLIDO
+  estado                String  @default("SOLICITADO")
+
+  createdAt  DateTime  @default(now())
+  resueltoAt DateTime?
+
+  serviceOrder        ServiceOrder  @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  profesionalSaliente Professional? @relation("ProfesionalSaliente", fields: [profesionalSalienteId], references: [id])
+  profesionalEntrante Professional? @relation("ProfesionalEntrante", fields: [profesionalEntranteId], references: [id])
+
+  @@index([serviceOrderId])
+}
+
+// ---------------------------------------------------------------------------
+// DATOS — la ventaja competitiva (§53)
+// ---------------------------------------------------------------------------
+
+/// Bitácora append-only. Todo cambio relevante deja rastro con su actor.
+model EventLog {
+  id        String   @id @default(cuid())
+  entidad   String
+  entidadId String
+  tipo      String
+  actor     String   @default("sistema")
+  payload   String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([entidad, entidadId])
+  @@index([tipo, createdAt])
+}
+
+/// Historial del Trust Score. Sin snapshots no se puede auditar por qué subió
+/// o bajó, ni entrenar nada después.
+model TrustSnapshot {
+  id             String   @id @default(cuid())
+  professionalId String
+  score          Int
+  desglose       String   @default("{}")
+  motivo         String   @default("")
+  createdAt      DateTime @default(now())
+
+  professional Professional @relation(fields: [professionalId], references: [id], onDelete: Cascade)
+
+  @@index([professionalId, createdAt])
+}
