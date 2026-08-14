@@ -13,6 +13,7 @@
         "db:reset": "prisma migrate reset --force",
         "db:studio": "prisma studio",
         "verificar": "tsx scripts/verificar-motores.ts",
+        "subir": "powershell -NoProfile -ExecutionPolicy Bypass -File ./subir.ps1",
         "postinstall": "prisma generate"
     },
     "dependencies": {
