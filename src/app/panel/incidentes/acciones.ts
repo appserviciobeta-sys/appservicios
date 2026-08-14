@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { requerirOperador } from "@/lib/auth";
 import { registrarEvento } from "@/lib/events";
 import { fallar } from "@/lib/errores";
 import { recalcularTrust, recalcularTrustCliente } from "@/lib/trust-engine";
@@ -10,6 +11,9 @@ import { recalcularTrust, recalcularTrustCliente } from "@/lib/trust-engine";
 /// decidir. Cerrar un incidente exige escribir qué se decidió, a quién se le
 /// atribuye y cuánto costó.
 export async function resolverIncidente(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const incidenteId = String(formData.get("incidenteId"));
   const estado = String(formData.get("estado"));
   const resolucion = String(formData.get("resolucion") ?? "").trim();

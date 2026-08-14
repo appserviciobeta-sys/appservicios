@@ -14,6 +14,9 @@
         "db:studio": "prisma studio",
         "verificar": "tsx scripts/verificar-motores.ts",
         "probar-db": "tsx scripts/probar-conexion.ts",
+        "operador": "tsx scripts/crear-operador.ts",
+        "sql-arranque": "tsx scripts/sql-arranque.ts",
+        "secreto": "node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"",
         "subir": "powershell -NoProfile -ExecutionPolicy Bypass -File ./subir.ps1",
         "postinstall": "prisma generate"
     },
@@ -24,6 +27,7 @@
         "pg": "^8.23.0",
         "react": "19.2.8",
         "react-dom": "19.2.8",
+        "server-only": "^0.0.1",
         "zod": "^4.4.3"
     },
     "devDependencies": {

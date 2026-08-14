@@ -1,6 +1,12 @@
 import path from "node:path";
-import "dotenv/config";
+import { config as cargarEnv } from "dotenv";
 import { defineConfig } from "prisma/config";
+
+// Misma precedencia que Next: .env.local manda sobre .env. Es lo que escribe
+// `vercel env pull`, así que las migraciones usan las mismas credenciales que
+// la app desplegada.
+cargarEnv({ path: ".env" });
+cargarEnv({ path: ".env.local", override: true });
 
 /**
  * URL que usan los comandos de migración.

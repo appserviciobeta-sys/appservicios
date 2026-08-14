@@ -12,7 +12,7 @@
  * Datos demo: se crean solo si SEED_DEMO no es "false". Todo lo demo queda
  * marcado en notasInternas para poder borrarlo antes del piloto real.
  */
-import "dotenv/config";
+import "@/lib/entorno";
 import { prisma } from "@/lib/db";
 import { recalcularTrust } from "@/lib/trust-engine";
 

@@ -49,3 +49,6 @@ next-env.d.ts
 # base de datos local del piloto anterior
 *.db
 *.db-journal
+
+.vercel
+.env*

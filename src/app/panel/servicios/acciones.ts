@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { requerirOperador } from "@/lib/auth";
 import { registrarEvento } from "@/lib/events";
 import { fallar } from "@/lib/errores";
 import { codigoCorto } from "@/lib/format";
@@ -16,6 +17,9 @@ function ruta(id: string) {
 /// Servicios creados antes de que existieran los enlaces de la puerta, o a los
 /// que hay que rotarles el secreto porque se filtró.
 export async function generarEnlacesPuerta(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
 
   await prisma.serviceOrder.update({
@@ -39,6 +43,9 @@ export async function generarEnlacesPuerta(formData: FormData) {
 /// §17: sin código de servicio no se inicia. Este control es la diferencia
 /// entre "un desconocido entró a la casa" y "el profesional asignado llegó".
 export async function registrarCheckIn(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
   const codigo = String(formData.get("codigo") ?? "").trim();
 
@@ -78,6 +85,9 @@ export async function registrarCheckIn(formData: FormData) {
 }
 
 export async function registrarCheckOut(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
 
   const orden = await prisma.serviceOrder.findUniqueOrThrow({
@@ -106,6 +116,9 @@ export async function registrarCheckOut(formData: FormData) {
 }
 
 export async function cambiarEstadoOrden(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
   const estado = String(formData.get("estado"));
 
@@ -125,6 +138,9 @@ export async function cambiarEstadoOrden(formData: FormData) {
 }
 
 export async function cambiarEstadoPago(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
   const estadoPago = String(formData.get("estadoPago"));
 
@@ -147,6 +163,9 @@ export async function cambiarEstadoPago(formData: FormData) {
 /// §27: el sobrecosto no aprobado no existe. Se describe, se fotografía, se
 /// cotiza y el cliente decide antes de que se ejecute.
 export async function crearCambioAlcance(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
   const descripcion = String(formData.get("descripcion") ?? "").trim();
   const precioAdicional = Number(formData.get("precioAdicional") ?? 0);
@@ -179,6 +198,9 @@ export async function crearCambioAlcance(formData: FormData) {
 }
 
 export async function resolverCambioAlcance(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const cambioId = String(formData.get("cambioId"));
   const estado = String(formData.get("estado"));
 
@@ -215,6 +237,9 @@ export async function resolverCambioAlcance(formData: FormData) {
 }
 
 export async function agregarMaterial(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
   const descripcion = String(formData.get("descripcion") ?? "").trim();
   const cantidad = Number(formData.get("cantidad") ?? 1);
@@ -245,6 +270,9 @@ export async function agregarMaterial(formData: FormData) {
 }
 
 export async function agregarEvidencia(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
   const tipo = String(formData.get("tipo"));
   const nota = String(formData.get("nota") ?? "").trim();
@@ -265,6 +293,9 @@ export async function agregarEvidencia(formData: FormData) {
 }
 
 export async function calificar(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
   const emisor = String(formData.get("emisor"));
   const calidad = Number(formData.get("calidad") ?? 0);
@@ -314,6 +345,9 @@ export async function calificar(formData: FormData) {
 }
 
 export async function abrirIncidente(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
   const tipo = String(formData.get("tipo"));
   const severidad = String(formData.get("severidad"));
@@ -353,6 +387,9 @@ export async function abrirIncidente(formData: FormData) {
 /// §35 Reemplazo. Se mide el tiempo real que toma conseguir sustituto: es la
 /// métrica que dice si la promesa se puede sostener en esa zona.
 export async function solicitarReemplazo(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const ordenId = String(formData.get("ordenId"));
   const motivo = String(formData.get("motivo") ?? "").trim();
 

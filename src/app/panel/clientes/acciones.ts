@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { requerirOperador } from "@/lib/auth";
 import { registrarEvento } from "@/lib/events";
 import { fallar } from "@/lib/errores";
 import { normalizarCelular } from "@/lib/format";
@@ -12,6 +13,9 @@ function ruta(id: string) {
 }
 
 export async function cambiarEstadoCliente(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const clientId = String(formData.get("clientId"));
   const estado = String(formData.get("estado"));
   const motivo = String(formData.get("motivo") ?? "").trim();
@@ -44,6 +48,9 @@ export async function cambiarEstadoCliente(formData: FormData) {
 }
 
 export async function guardarNotasCliente(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const clientId = String(formData.get("clientId"));
   const notas = String(formData.get("notasInternas") ?? "");
 
@@ -52,6 +59,9 @@ export async function guardarNotasCliente(formData: FormData) {
 }
 
 export async function actualizarCliente(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const clientId = String(formData.get("clientId"));
   const nombre = String(formData.get("nombre") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
@@ -71,6 +81,9 @@ export async function actualizarCliente(formData: FormData) {
 /// §39–§41: la demanda B2B es por local. Sin sedes registradas no se puede
 /// medir SLA ni saber dónde falta cobertura para esa empresa.
 export async function agregarSede(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const clientId = String(formData.get("clientId"));
   const nombre = String(formData.get("nombre") ?? "").trim();
   const direccion = String(formData.get("direccion") ?? "").trim();
@@ -102,6 +115,9 @@ export async function agregarSede(formData: FormData) {
 }
 
 export async function recalcularReputacionCliente(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const clientId = String(formData.get("clientId"));
   await recalcularTrustCliente(clientId);
   redirect(ruta(clientId));

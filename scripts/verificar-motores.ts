@@ -7,7 +7,7 @@
  *
  *   npm run verificar
  */
-import "dotenv/config";
+import "@/lib/entorno";
 import { prisma } from "@/lib/db";
 import { contextoDeFecha, cotizar } from "@/lib/price-engine";
 import { cop } from "@/lib/format";

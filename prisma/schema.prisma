@@ -26,6 +26,40 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
+// ACCESO — quién puede entrar al panel
+// ---------------------------------------------------------------------------
+
+/// Operador de la plataforma. El panel maneja direcciones de casas, cédulas y
+/// teléfonos: sin control de acceso no se puede operar con datos reales
+/// (Ley 1581 de 2012).
+///
+/// La contraseña se guarda como scrypt con sal única por usuario. No se usa una
+/// librería externa a propósito: scrypt viene en Node y una dependencia menos
+/// en la ruta de autenticación es una superficie de ataque menos.
+model Operator {
+  id     String @id @default(cuid())
+  email  String @unique
+  nombre String
+
+  /// Formato: scrypt$N$r$p$sal_hex$hash_hex
+  clave String
+
+  /// ADMIN puede crear y desactivar operadores. OPERADOR solo opera.
+  rol    String  @default("OPERADOR")
+  activo Boolean @default(true)
+
+  /// Se corta la sesión invalidando todas las emitidas antes de esta marca.
+  /// Sirve para expulsar a alguien sin esperar a que expire su cookie.
+  sesionesDesde DateTime @default(now())
+
+  ultimoAcceso DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([activo])
+}
+
+// ---------------------------------------------------------------------------
 // CATÁLOGO — qué vendemos y a qué precio
 // ---------------------------------------------------------------------------
 

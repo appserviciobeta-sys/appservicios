@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { requerirOperador } from "@/lib/auth";
 import { registrarEvento } from "@/lib/events";
 import { fallar } from "@/lib/errores";
 import { codigoCorto, codigoServicio } from "@/lib/format";
@@ -13,6 +14,9 @@ function ruta(id: string) {
 }
 
 export async function buscarCandidatos(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const requestId = String(formData.get("requestId"));
 
   const solicitud = await prisma.serviceRequest.findUniqueOrThrow({ where: { id: requestId } });
@@ -37,6 +41,9 @@ export async function buscarCandidatos(formData: FormData) {
 }
 
 export async function asignarProfesional(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const requestId = String(formData.get("requestId"));
   const professionalId = String(formData.get("professionalId"));
 
@@ -103,6 +110,9 @@ export async function asignarProfesional(formData: FormData) {
 }
 
 export async function actualizarCandidato(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const candidatoId = String(formData.get("candidatoId"));
   const estado = String(formData.get("estado"));
   const motivo = String(formData.get("motivo") ?? "");
@@ -123,6 +133,9 @@ export async function actualizarCandidato(formData: FormData) {
 }
 
 export async function marcarPerdida(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const requestId = String(formData.get("requestId"));
   const motivo = String(formData.get("motivoPerdida") ?? "").trim();
 
@@ -146,6 +159,9 @@ export async function marcarPerdida(formData: FormData) {
 }
 
 export async function guardarNotas(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const requestId = String(formData.get("requestId"));
   const notas = String(formData.get("notasInternas") ?? "");
 

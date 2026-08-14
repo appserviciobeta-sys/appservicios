@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { requerirOperador } from "@/lib/auth";
 import { registrarEvento } from "@/lib/events";
 import { fallar } from "@/lib/errores";
 import { MOTIVO_DOCUMENTO } from "@/lib/constants";
@@ -12,6 +13,9 @@ function ruta(id: string) {
 }
 
 export async function verificarSkill(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const skillProId = String(formData.get("skillProId"));
   const estado = String(formData.get("estado"));
   const fuente = String(formData.get("fuente") ?? "");
@@ -64,6 +68,9 @@ export async function verificarSkill(formData: FormData) {
 }
 
 export async function actualizarDocumento(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const documentoId = String(formData.get("documentoId"));
   const estado = String(formData.get("estado"));
   const vence = String(formData.get("venceEn") ?? "");
@@ -90,6 +97,9 @@ export async function actualizarDocumento(formData: FormData) {
 }
 
 export async function agregarDocumento(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const professionalId = String(formData.get("professionalId"));
   const tipo = String(formData.get("tipo"));
 
@@ -110,6 +120,9 @@ export async function agregarDocumento(formData: FormData) {
 }
 
 export async function cambiarEstadoProfesional(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const professionalId = String(formData.get("professionalId"));
   const estado = String(formData.get("estado"));
 
@@ -144,6 +157,9 @@ export async function cambiarEstadoProfesional(formData: FormData) {
 }
 
 export async function guardarNotasProfesional(formData: FormData) {
+  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
+  await requerirOperador();
+
   const professionalId = String(formData.get("professionalId"));
   const notas = String(formData.get("notasInternas") ?? "");
   const zonas = String(formData.get("zonas") ?? "");
