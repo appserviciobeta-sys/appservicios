@@ -1,6 +1,37 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * Desarma una URL de conexión sin revelar la contraseña.
+ *
+ * De la contraseña solo sale su longitud y una huella (los primeros 10 hex de
+ * un SHA-256). Dos huellas iguales significan misma contraseña; distintas,
+ * distinta. Es lo único que hace falta para saber si la de Vercel coincide con
+ * la que sí funciona en local, y no expone nada.
+ */
+function radiografia(url: string | undefined) {
+  if (!url) return { definida: false };
+  const m = url.match(/^postgres(?:ql)?:\/\/([^:]+):([^@]*)@([^:/]+):(\d+)\/([^?]+)(\?.*)?$/);
+  if (!m) return { definida: true, formato: "no se entiende", largo: url.length };
+
+  const [, usuario, clave, host, puerto, base, parametros] = m;
+  return {
+    definida: true,
+    usuario,
+    host,
+    puerto,
+    base,
+    parametros: parametros ?? "(ninguno)",
+    claveLargo: clave.length,
+    claveHuella: createHash("sha256").update(clave).digest("hex").slice(0, 10),
+    // Espacios o saltos de línea pegados al final rompen la autenticación y
+    // son invisibles en la caja de texto de Vercel.
+    claveConEspacios: clave !== clave.trim(),
+    urlConEspacios: url !== url.trim(),
+  };
+}
 
 /**
  * Diagnóstico del despliegue: GET /api/salud
@@ -71,6 +102,10 @@ export async function GET() {
           : "Las variables están, pero la base no responde. Revisa el detalle de abajo.",
       obligatorias,
       opcionales,
+      conexion: {
+        DATABASE_URL: radiografia(process.env.DATABASE_URL),
+        DIRECT_URL: radiografia(process.env.DIRECT_URL),
+      },
       baseDatos,
       entorno: process.env.VERCEL_ENV ?? "local",
     },
