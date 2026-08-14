@@ -24,13 +24,30 @@ function Correr-Git {
 
 # Solo opera sobre este proyecto, nunca sobre otro repositorio abierto.
 $origen = (Correr-Git @("remote", "get-url", "origin")).Texto.Trim()
-if ($origen -notmatch "appservicios") {
+if ($origen -notmatch "appserviciobeta-sys/appservicios") {
     Write-Host "  ABORTADO: el remoto no es appservicios, es '$origen'." -ForegroundColor Red
     exit 1
 }
 
+# En este equipo hay ocho cuentas de GitHub guardadas. Si el remoto no dice a
+# cual pertenece, Windows entrega la generica y los commits terminan firmados
+# por otra cuenta. Aqui se avisa antes de subir, no despues.
+if ($origen -notmatch "appserviciobeta-sys@github.com") {
+    Write-Host "  AVISO: el remoto no indica la cuenta. Se sube con la credencial generica." -ForegroundColor Yellow
+    Write-Host "  Arreglo: git remote set-url origin https://appserviciobeta-sys@github.com/appserviciobeta-sys/appservicios.git" -ForegroundColor Yellow
+    Write-Host ""
+}
+
+$firma = (Correr-Git @("config", "user.email")).Texto.Trim()
+if ($firma -notmatch "appserviciobeta-sys") {
+    Write-Host "  AVISO: los commits se firmarian como '$firma'." -ForegroundColor Yellow
+    Write-Host "  Arreglo: git config user.email 316608070+appserviciobeta-sys@users.noreply.github.com" -ForegroundColor Yellow
+    Write-Host ""
+}
+
 Write-Host ""
 Write-Host "  Proyecto : $(Split-Path -Leaf $raiz)" -ForegroundColor Cyan
+Write-Host "  Firma    : $firma" -ForegroundColor Cyan
 Write-Host "  Remoto   : $origen" -ForegroundColor Cyan
 Write-Host ""
 
