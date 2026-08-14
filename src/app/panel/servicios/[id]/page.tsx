@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { eventosDe } from "@/lib/events";
 import { urlDeEvidencia, urlsDeEvidencia } from "@/lib/almacenamiento";
+import { enlaceCliente, enlaceProfesional } from "@/lib/enlaces";
 import { cop, fecha, fechaHora, minutosATexto, whatsapp } from "@/lib/format";
 import {
   ESTADOS_ORDEN,
@@ -40,10 +41,6 @@ import {
 } from "../acciones";
 
 export const dynamic = "force-dynamic";
-
-/// Dominio público del piloto. En despliegue se toma de la variable de entorno;
-/// en local queda el host de desarrollo para poder probar desde el celular.
-const enlaceBase = process.env.NEXT_PUBLIC_URL_BASE ?? "http://localhost:3000";
 
 export default async function ServicioDetalle({
   params,
@@ -568,7 +565,7 @@ export default async function ServicioDetalle({
                       <a
                         href={whatsapp(
                           orden.professional.celular,
-                          `Hola ${orden.professional.nombre.split(" ")[0]}, este es tu trabajo ${orden.codigo}. Abre este enlace cuando salgas: ${enlaceBase}/t/${orden.tokenProfesional}`,
+                          `Hola ${orden.professional.nombre.split(" ")[0]}, este es tu trabajo ${orden.codigo}. Abre este enlace cuando salgas: ${enlaceProfesional(orden.tokenProfesional)}`,
                         )}
                         target="_blank"
                         rel="noreferrer"
@@ -590,7 +587,7 @@ export default async function ServicioDetalle({
                     <a
                       href={whatsapp(
                         orden.client.celular,
-                        `Hola ${orden.client.nombre.split(" ")[0]}, sigue tu servicio ${orden.codigo} aquí: ${enlaceBase}/s/${orden.tokenCliente}`,
+                        `Hola ${orden.client.nombre.split(" ")[0]}, sigue tu servicio ${orden.codigo} aquí: ${enlaceCliente(orden.tokenCliente)}`,
                       )}
                       target="_blank"
                       rel="noreferrer"

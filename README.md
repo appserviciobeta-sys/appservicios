@@ -42,7 +42,9 @@ que la exige. Sin ella el build falla antes de empezar.
 | `NEXT_PUBLIC_SUPABASE_URL` | Cliente de Supabase |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Clave pública |
 | `SUPABASE_SERVICE_ROLE_KEY` | Subir y firmar evidencia. **Solo servidor** |
-| `NEXT_PUBLIC_URL_BASE` | Dominio del despliegue, para los enlaces de la puerta |
+
+`NEXT_PUBLIC_URL_BASE` **no hace falta en Vercel**: el dominio se deduce solo de
+`VERCEL_PROJECT_PRODUCTION_URL`. Solo se define el día que haya dominio propio.
 
 ### 3. Bucket de evidencia
 
