@@ -32,14 +32,23 @@ function escapar(v: string): string {
 }
 
 async function main() {
-  const [email, nombre] = process.argv.slice(2);
+  const [email, nombre, claveElegida] = process.argv.slice(2);
   if (!email || !nombre) {
-    console.log('Uso: npm run sql-arranque -- correo@dominio.com "Nombre Apellido"');
+    console.log('Uso: npm run sql-arranque -- correo@dominio.com "Nombre Apellido" [contraseña]');
+    console.log("");
+    console.log("Sin el tercer argumento se genera una contraseña al azar,");
+    console.log("que es lo recomendable si la vas a guardar en un gestor.");
+    process.exit(1);
+  }
+
+  if (claveElegida && claveElegida.length < 10) {
+    console.log("La contraseña debe tener al menos 10 caracteres.");
+    console.log("Este panel muestra direcciones de casas y cédulas: no la dejes corta.");
     process.exit(1);
   }
 
   const correo = email.trim().toLowerCase();
-  const clave = generarClave();
+  const clave = claveElegida ?? generarClave();
   const hash = await hashearClave(clave);
 
   const rutaMigracion = path.join(process.cwd(), "prisma", "migrations", MIGRACION, "migration.sql");

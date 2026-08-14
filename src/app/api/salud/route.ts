@@ -53,6 +53,17 @@ const OPCIONALES = [
   { nombre: "NEXT_PUBLIC_URL_BASE", para: "dominio propio (si no, se deduce solo)" },
 ];
 
+/// El panel exige AUTH_SECRET para firmar la cookie de sesión. Si falta, el
+/// login autentica bien y aun así rebota al entrar: un síntoma muy confuso.
+function revisarAcceso() {
+  const secreto = process.env.AUTH_SECRET;
+  return {
+    definida: Boolean(secreto),
+    largo: secreto?.length ?? 0,
+    suficiente: (secreto?.length ?? 0) >= 32,
+  };
+}
+
 function revisar(lista: { nombre: string; para: string }[]) {
   return lista.map(({ nombre, para }) => {
     const valor = process.env[nombre];
@@ -79,7 +90,20 @@ export async function GET() {
       const { prisma } = await import("@/lib/db");
       const categorias = await prisma.category.count();
       const servicios = await prisma.serviceType.count();
-      baseDatos = { estado: "conecta", categorias, servicios };
+
+      // La tabla de operadores puede no existir todavía: se crea a mano desde
+      // el editor SQL cuando las credenciales locales no sirven.
+      let operadores: unknown;
+      try {
+        const total = await prisma.operator.count();
+        const activos = await prisma.operator.count({ where: { activo: true } });
+        const admins = await prisma.operator.count({ where: { rol: "ADMIN", activo: true } });
+        operadores = { tabla: "existe", total, activos, admins };
+      } catch {
+        operadores = { tabla: "NO EXISTE", queHacer: "Corre el bloque CREATE TABLE en Supabase" };
+      }
+
+      baseDatos = { estado: "conecta", categorias, servicios, operadores };
     } catch (e) {
       baseDatos = {
         estado: "falla",
@@ -106,6 +130,7 @@ export async function GET() {
         DATABASE_URL: radiografia(process.env.DATABASE_URL),
         DIRECT_URL: radiografia(process.env.DIRECT_URL),
       },
+      acceso: revisarAcceso(),
       baseDatos,
       entorno: process.env.VERCEL_ENV ?? "local",
     },
