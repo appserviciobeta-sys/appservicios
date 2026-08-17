@@ -213,6 +213,7 @@ model Professional {
   reemplazosSalida  Replacement[]          @relation("ProfesionalSaliente")
   reemplazosEntrada Replacement[]          @relation("ProfesionalEntrante")
   trustSnapshots    TrustSnapshot[]
+  liquidaciones     Payout[]
 
   @@index([estado])
   @@index([ciudad])
@@ -550,10 +551,114 @@ model ServiceOrder {
   incidentes     Incident[]
   reemplazos     Replacement[]
   rastro         LocationPing[]
+  pagos          Payment[]
+  liquidaciones  PayoutItem[]
 
   @@index([estado])
   @@index([professionalId])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// DINERO — lo que entró y lo que salió
+// ---------------------------------------------------------------------------
+
+/// Un cobro real al cliente.
+///
+/// Existe porque `estadoPago` en la orden es una etiqueta, no un hecho: dice
+/// "COBRADO" pero no cuánto entró, por qué medio, qué día ni con qué
+/// referencia. Sin eso no se puede cuadrar una cuenta contra un extracto
+/// bancario, y a los tres meses nadie sabe si ese servicio se cobró completo.
+///
+/// Se guardan varios pagos por orden a propósito: los abonos existen, y
+/// forzarlos a un solo registro obliga a mentir en el monto.
+model Payment {
+  id             String @id @default(cuid())
+  serviceOrderId String
+
+  /// En pesos enteros, como todo el dinero del sistema. Nada de decimales
+  /// flotantes: 0.1 + 0.2 no da 0.3 y una diferencia de un peso repetida mil
+  /// veces es una diferencia de mil pesos que nadie puede explicar.
+  monto Int
+
+  /// EFECTIVO | TRANSFERENCIA | NEQUI | DAVIPLATA | PSE | TARJETA | OTRO
+  metodo String
+  /// MANUAL por ahora. Cuando entre una pasarela, aquí queda su nombre y en
+  /// `referencia` el id de la transacción.
+  proveedor String @default("MANUAL")
+  /// Número de aprobación, últimos dígitos del comprobante, id de la pasarela.
+  /// Es lo que permite encontrar el movimiento en el banco.
+  referencia String @default("")
+
+  /// CONFIRMADO | REVERSADO
+  estado String @default("CONFIRMADO")
+
+  recibidoAt    DateTime @default(now())
+  /// Correo del operador que lo registró. La plata siempre tiene un responsable.
+  registradoPor String   @default("")
+  notas         String   @default("")
+
+  createdAt DateTime @default(now())
+
+  order ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId])
+  @@index([recibidoAt])
+  @@index([estado])
+}
+
+/// Un giro al profesional, que puede cubrir varios servicios.
+///
+/// Se agrupa porque así se paga en la vida real: no se hace una transferencia
+/// por cada servicio, se hace una el viernes por todo lo de la semana. Sin
+/// agrupar, el profesional no puede cuadrar lo que le llegó contra lo que
+/// trabajó, que es la queja número uno en cualquier plataforma de este tipo.
+model Payout {
+  id             String @id @default(cuid())
+  codigo         String @unique
+  professionalId String
+
+  monto      Int
+  /// TRANSFERENCIA | NEQUI | DAVIPLATA | EFECTIVO | OTRO
+  metodo     String @default("TRANSFERENCIA")
+  referencia String @default("")
+
+  /// PENDIENTE | PAGADO | ANULADO
+  estado String @default("PENDIENTE")
+
+  pagadoAt      DateTime?
+  /// Quién autorizó el giro.
+  registradoPor String    @default("")
+  notas         String    @default("")
+
+  createdAt DateTime @default(now())
+
+  professional Professional @relation(fields: [professionalId], references: [id])
+  items        PayoutItem[]
+
+  @@index([professionalId])
+  @@index([estado])
+  @@index([createdAt])
+}
+
+/// Qué servicio entró en qué giro.
+///
+/// El @@unique no es cosmético: es lo que impide pagar dos veces el mismo
+/// trabajo. Una liquidación duplicada no se nota hasta que se cuadra el mes.
+model PayoutItem {
+  id             String @id @default(cuid())
+  payoutId       String
+  serviceOrderId String
+
+  /// Se congela el monto al liquidar. Si después se aprueba un trabajo
+  /// adicional, el pago del profesional sube — pero lo ya girado no cambia.
+  monto Int
+
+  payout Payout       @relation(fields: [payoutId], references: [id], onDelete: Cascade)
+  order  ServiceOrder @relation(fields: [serviceOrderId], references: [id])
+
+  @@unique([payoutId, serviceOrderId])
+  @@index([serviceOrderId])
 }
 
 /// Rastro del profesional mientras va en camino.

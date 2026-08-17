@@ -8,11 +8,14 @@ import { cop, fecha, fechaHora, minutosATexto, whatsapp } from "@/lib/format";
 import {
   ESTADOS_ORDEN,
   ESTADOS_PAGO,
+  METODOS_PAGO,
   ORDENES_ACTIVAS,
   SEVERIDADES,
   TIPOS_INCIDENTE,
   etiqueta,
 } from "@/lib/constants";
+import { cuentaDeOrden, sePuedeCobrar } from "@/lib/dinero";
+import { registrarCobro, reversarCobro } from "@/app/panel/dinero/acciones";
 import {
   Aviso,
   Badge,
@@ -31,7 +34,6 @@ import {
   agregarMaterial,
   calificar,
   cambiarEstadoOrden,
-  cambiarEstadoPago,
   crearCambioAlcance,
   generarEnlacesPuerta,
   registrarCheckIn,
@@ -66,6 +68,8 @@ export default async function ServicioDetalle({
       calificaciones: true,
       incidentes: { orderBy: { abiertoAt: "desc" } },
       reemplazos: { include: { profesionalSaliente: true, profesionalEntrante: true } },
+      pagos: { orderBy: { recibidoAt: "desc" } },
+      liquidaciones: { include: { payout: true } },
     },
   });
 
@@ -85,6 +89,9 @@ export default async function ServicioDetalle({
   );
   const margen = orden.comision - costoMateriales;
   const enCurso = ORDENES_ACTIVAS.includes(orden.estado);
+  const cuenta = cuentaDeOrden(orden.precioCliente, orden.pagos);
+  const cobrable = sePuedeCobrar(orden);
+  const giro = orden.liquidaciones.find((l) => l.payout.estado !== "ANULADO")?.payout;
   const duracionReal =
     orden.checkInAt && orden.checkOutAt
       ? Math.round((orden.checkOutAt.getTime() - orden.checkInAt.getTime()) / 60000)
@@ -619,6 +626,125 @@ export default async function ServicioDetalle({
           </Card>
 
           <Card>
+            <CardTitulo>Cuenta</CardTitulo>
+            <div className="space-y-4 p-4">
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-tinta-suave">Precio</dt>
+                  <dd className="cifra">{cop(cuenta.total)}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-tinta-suave">Cobrado</dt>
+                  <dd className="cifra">{cop(cuenta.cobrado)}</dd>
+                </div>
+                <div className="troquel flex justify-between gap-3 pt-2">
+                  <dt className="text-tinta-suave">Saldo</dt>
+                  <dd className={`cifra font-medium ${cuenta.saldo > 0 ? "text-aviso" : "text-verificado"}`}>
+                    {cop(cuenta.saldo)}
+                  </dd>
+                </div>
+                {cuenta.excedente > 0 ? (
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-alerta">Cobrado de más</dt>
+                    <dd className="cifra text-alerta">{cop(cuenta.excedente)}</dd>
+                  </div>
+                ) : null}
+              </dl>
+
+              {!cobrable ? (
+                <Aviso tono="neutro">
+                  No se puede cobrar hasta que el cliente confirme que el trabajo quedó bien.
+                </Aviso>
+              ) : cuenta.saldo > 0 ? (
+                <form action={registrarCobro} className="space-y-2 border-t border-regla pt-4">
+                  <input type="hidden" name="ordenId" value={orden.id} />
+                  <input type="hidden" name="volverA" value={`/panel/servicios/${orden.id}`} />
+                  <Campo etiqueta="Registrar cobro">
+                    <input
+                      name="monto"
+                      type="number"
+                      min={1}
+                      max={cuenta.saldo}
+                      defaultValue={cuenta.saldo}
+                      className={`${claseInput} cifra`}
+                    />
+                  </Campo>
+                  <select name="metodo" className={claseInput}>
+                    {Object.entries(METODOS_PAGO).map(([valor, texto]) => (
+                      <option key={valor} value={valor}>
+                        {texto}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    name="referencia"
+                    placeholder="Referencia del banco"
+                    className={claseInput}
+                  />
+                  <Boton tipo="secundario" className="w-full">
+                    Registrar cobro
+                  </Boton>
+                </form>
+              ) : null}
+
+              {orden.pagos.length > 0 ? (
+                <ul className="space-y-2 border-t border-regla pt-4">
+                  {orden.pagos.map((pago) => (
+                    <li key={pago.id} className="text-sm">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className={pago.estado === "REVERSADO" ? "line-through text-tinta-suave" : ""}>
+                          {etiqueta(METODOS_PAGO, pago.metodo)}
+                        </span>
+                        <span className="cifra">{cop(pago.monto)}</span>
+                      </div>
+                      <div className="rotulo">
+                        {fecha(pago.recibidoAt)}
+                        {pago.referencia ? ` · ${pago.referencia}` : ""}
+                      </div>
+                      {pago.estado === "CONFIRMADO" ? (
+                        <details className="mt-1">
+                          <summary className="enlace cursor-pointer text-xs text-tinta-suave">
+                            Reversar
+                          </summary>
+                          <form action={reversarCobro} className="mt-2 space-y-2">
+                            <input type="hidden" name="pagoId" value={pago.id} />
+                            <input
+                              type="hidden"
+                              name="volverA"
+                              value={`/panel/servicios/${orden.id}`}
+                            />
+                            <input
+                              name="motivo"
+                              placeholder="Por qué se reversa"
+                              className={`${claseInput} !py-2`}
+                              required
+                            />
+                            <Boton tipo="peligro" className="w-full !py-2">
+                              Reversar cobro
+                            </Boton>
+                          </form>
+                        </details>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+
+              {giro ? (
+                <div className="border-t border-regla pt-4 text-sm">
+                  <div className="rotulo">Giro al profesional</div>
+                  <div className="mt-1 flex items-baseline justify-between gap-3">
+                    <span className="cifra">{giro.codigo}</span>
+                    <Badge tono={giro.estado === "PAGADO" ? "ok" : "aviso"}>
+                      {giro.estado === "PAGADO" ? "Girado" : "Por girar"}
+                    </Badge>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </Card>
+
+          <Card>
             <CardTitulo>Operación</CardTitulo>
             <div className="space-y-4 p-4">
               <form action={cambiarEstadoOrden} className="space-y-2">
@@ -632,20 +758,6 @@ export default async function ServicioDetalle({
                 </select>
                 <Boton tipo="secundario" className="w-full">
                   Cambiar estado
-                </Boton>
-              </form>
-
-              <form action={cambiarEstadoPago} className="space-y-2 border-t border-regla pt-4">
-                <input type="hidden" name="ordenId" value={orden.id} />
-                <select name="estadoPago" className={claseInput} defaultValue={orden.estadoPago}>
-                  {Object.entries(ESTADOS_PAGO).map(([valor, texto]) => (
-                    <option key={valor} value={valor}>
-                      {texto}
-                    </option>
-                  ))}
-                </select>
-                <Boton tipo="secundario" className="w-full">
-                  Actualizar pago
                 </Boton>
               </form>
 

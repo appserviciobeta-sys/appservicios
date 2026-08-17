@@ -137,28 +137,10 @@ export async function cambiarEstadoOrden(formData: FormData) {
   redirect(ruta(ordenId));
 }
 
-export async function cambiarEstadoPago(formData: FormData) {
-  // Los server actions se invocan por HTTP: el guardia del layout no los cubre.
-  await requerirOperador();
-
-  const ordenId = String(formData.get("ordenId"));
-  const estadoPago = String(formData.get("estadoPago"));
-
-  const orden = await prisma.serviceOrder.update({
-    where: { id: ordenId },
-    data: { estadoPago },
-  });
-
-  await registrarEvento({
-    entidad: "ServiceOrder",
-    entidadId: ordenId,
-    tipo: "ESTADO_PAGO",
-    payload: { estadoPago },
-  });
-
-  await recalcularTrustCliente(orden.clientId);
-  redirect(ruta(ordenId));
-}
+// `cambiarEstadoPago` se eliminó a propósito. El estado de pago ya no se
+// escribe: lo deriva `estadoPagoDerivado` de los cobros y giros registrados.
+// Dejar la acción viva permitiría marcar "COBRADO" por HTTP sin que hubiera
+// entrado un peso, que es justamente lo que se quiso cerrar.
 
 /// §27: el sobrecosto no aprobado no existe. Se describe, se fotografía, se
 /// cotiza y el cliente decide antes de que se ejecute.

@@ -53,12 +53,31 @@ export const ORDENES_ACTIVAS = [
   "EN_EJECUCION",
 ];
 
+/// Ya no se elige a mano: lo calcula `estadoPagoDerivado` a partir de los pagos
+/// registrados y las liquidaciones giradas. Este mapa solo sirve para mostrarlo.
 export const ESTADOS_PAGO = {
-  PENDIENTE: "Pendiente",
-  AUTORIZADO: "Autorizado",
+  PENDIENTE: "Sin autorizar",
+  AUTORIZADO: "Por cobrar",
+  PARCIAL: "Abonado",
   COBRADO: "Cobrado",
-  LIQUIDADO: "Liquidado",
+  LIQUIDADO: "Cobrado y girado",
   REEMBOLSADO: "Reembolsado",
+} as const;
+
+export const METODOS_PAGO = {
+  TRANSFERENCIA: "Transferencia",
+  NEQUI: "Nequi",
+  DAVIPLATA: "Daviplata",
+  EFECTIVO: "Efectivo",
+  PSE: "PSE",
+  TARJETA: "Tarjeta",
+  OTRO: "Otro",
+} as const;
+
+export const ESTADOS_LIQUIDACION = {
+  PENDIENTE: "Por girar",
+  PAGADO: "Girado",
+  ANULADO: "Anulado",
 } as const;
 
 export const ESTADOS_PROFESIONAL = {

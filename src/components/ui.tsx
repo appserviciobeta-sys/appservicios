@@ -31,7 +31,7 @@ export function tonoEstado(estado: string): Tono {
   )
     return "ok";
   if (
-    ["EN_VERIFICACION", "EN_REVISION", "PENDIENTE", "NUEVA", "SOLICITADO", "ABIERTO", "EN_INVESTIGACION", "DECLARADA", "SUGERIDO", "CONTACTADO", "BORRADOR"].includes(estado)
+    ["EN_VERIFICACION", "EN_REVISION", "PENDIENTE", "NUEVA", "SOLICITADO", "ABIERTO", "EN_INVESTIGACION", "DECLARADA", "SUGERIDO", "CONTACTADO", "BORRADOR", "PARCIAL"].includes(estado)
   )
     return "aviso";
   if (

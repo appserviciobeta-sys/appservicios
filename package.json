@@ -14,6 +14,8 @@
         "db:studio": "prisma studio",
         "verificar": "tsx scripts/verificar-motores.ts",
         "verificar-rastro": "tsx scripts/verificar-rastro.ts",
+        "verificar-dinero": "tsx scripts/verificar-dinero.ts",
+        "verificar-todo": "npm run verificar-rastro && npm run verificar-dinero",
         "probar-db": "tsx scripts/probar-conexion.ts",
         "operador": "tsx scripts/crear-operador.ts",
         "sql-arranque": "tsx scripts/sql-arranque.ts",
