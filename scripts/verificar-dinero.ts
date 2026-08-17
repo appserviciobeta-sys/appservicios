@@ -10,6 +10,7 @@
  */
 import {
   cuentaDeOrden,
+  esImpago,
   estadoPagoDerivado,
   margenReal,
   sePuedeCobrar,
@@ -158,6 +159,42 @@ console.log("\nQUÉ SE PUEDE GIRAR\n");
     JSON.stringify(r),
   );
   revisar("suma bien lo girable", r.totalListas === 70_000, String(r.totalListas));
+}
+
+console.log("\nQUÉ CUENTA COMO IMPAGO\n");
+
+{
+  const AHORA = new Date("2026-08-17T12:00:00Z").getTime();
+  const hace = (dias: number) => new Date(AHORA - dias * 24 * 3600 * 1000);
+
+  // El cambio a estados derivados le cambió el significado a PENDIENTE: ya no
+  // es "no ha pagado" sino "el cliente no ha confirmado". Castigar ahí sería
+  // culpar al cliente por no pagar algo que el sistema no le deja pagar.
+  revisar(
+    "sin confirmar no es impago",
+    !esImpago({ estadoPago: "PENDIENTE", updatedAt: hace(30) }, AHORA),
+    "contó como impago un servicio sin confirmar",
+  );
+  revisar(
+    "confirmado y sin pagar hace 10 días sí es impago",
+    esImpago({ estadoPago: "AUTORIZADO", updatedAt: hace(10) }, AHORA),
+    "no detectó una deuda real",
+  );
+  revisar(
+    "abonado a medias hace 10 días es impago",
+    esImpago({ estadoPago: "PARCIAL", updatedAt: hace(10) }, AHORA),
+    "un abono parcial viejo no contó",
+  );
+  revisar(
+    "dentro de los 3 días de gracia no es impago",
+    !esImpago({ estadoPago: "AUTORIZADO", updatedAt: hace(1) }, AHORA),
+    "castigó dentro del periodo de gracia",
+  );
+  revisar(
+    "cobrado no es impago",
+    !esImpago({ estadoPago: "COBRADO", updatedAt: hace(30) }, AHORA),
+    "contó como deuda algo ya cobrado",
+  );
 }
 
 console.log("\nMARGEN REAL\n");

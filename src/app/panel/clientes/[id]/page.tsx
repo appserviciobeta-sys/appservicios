@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { eventosDe } from "@/lib/events";
+import { esImpago } from "@/lib/dinero";
 import { cop, fecha, fechaHora, whatsapp } from "@/lib/format";
 import {
   ESTADOS_CLIENTE,
@@ -69,12 +70,10 @@ export default async function ClienteDetalle({
   const canceladas = cliente.ordenes.filter((o) => o.estado === "CANCELADA_CLIENTE");
   const facturado = completadas.reduce((acc, o) => acc + o.precioCliente, 0);
   const margen = completadas.reduce((acc, o) => acc + o.comision, 0);
-  // Mismo criterio que el Trust del cliente: hay 3 días de gracia antes de
-  // llamar impago a algo que quizá solo falta marcar en el panel.
-  const GRACIA_MS = 3 * 24 * 3600 * 1000;
-  const impagos = completadas.filter(
-    (o) => o.estadoPago === "PENDIENTE" && Date.now() - o.updatedAt.getTime() > GRACIA_MS,
-  );
+  // Mismo criterio que el Trust del cliente, en una sola función para que no se
+  // puedan desincronizar: hay 3 días de gracia antes de llamar impago a algo
+  // que quizá solo falta registrar en el panel.
+  const impagos = completadas.filter((o) => esImpago(o));
   const incidentes = cliente.ordenes.flatMap((o) => o.incidentes);
   const esEmpresa = cliente.tipo === "EMPRESA";
   const ticketPromedio = completadas.length === 0 ? 0 : Math.round(facturado / completadas.length);

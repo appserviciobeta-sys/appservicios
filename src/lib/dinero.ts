@@ -127,6 +127,30 @@ export function separarLiquidables(ordenes: OrdenLiquidable[]) {
   };
 }
 
+/// Tres días de gracia: si el operador todavía no ha registrado el cobro, el
+/// que va atrasado es el piloto, no el cliente.
+export const GRACIA_IMPAGO_MS = 3 * 24 * 3600 * 1000;
+
+/**
+ * ¿Este servicio quedó debiéndose?
+ *
+ * OJO con el estado que se mira. Cuando el pago se marcaba a mano, "PENDIENTE"
+ * quería decir "no ha pagado". Con los estados derivados significa otra cosa:
+ * "el cliente todavía no ha confirmado el trabajo", y en ese caso no hay nada
+ * que deber — ni siquiera se puede cobrar.
+ *
+ * La deuda real vive en AUTORIZADO (confirmó y no ha pagado nada) y en PARCIAL
+ * (abonó y quedó debiendo). Seguir mirando PENDIENTE castigaba al cliente por
+ * no haber pagado algo que el sistema no le dejaba pagar.
+ */
+export function esImpago(
+  orden: { estadoPago: string; updatedAt: Date },
+  ahora: number = Date.now(),
+): boolean {
+  if (!["AUTORIZADO", "PARCIAL"].includes(orden.estadoPago)) return false;
+  return ahora - orden.updatedAt.getTime() > GRACIA_IMPAGO_MS;
+}
+
 /// La comisión real, no la teórica: sobre lo que efectivamente entró.
 ///
 /// El margen proyectado del catálogo y el margen que quedó en la cuenta son

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { ORDENES_COMPLETADAS, ORDENES_FALLIDAS, SKILLS_HABILITADAS } from "@/lib/constants";
+import { esImpago } from "@/lib/dinero";
 
 export type ComponenteTrust = {
   clave: string;
@@ -239,14 +240,8 @@ export async function recalcularTrustCliente(clientId: string) {
     .flatMap((o) => o.incidentes)
     .filter((i) => i.responsable === "CLIENTE").length;
 
-  // Solo cuenta como impago después de 3 días: si el operador todavía no ha
-  // marcado el cobro, el que va atrasado es el piloto, no el cliente.
-  const GRACIA_MS = 3 * 24 * 3600 * 1000;
   const impagos = cliente.ordenes.filter(
-    (o) =>
-      ORDENES_COMPLETADAS.includes(o.estado) &&
-      o.estadoPago === "PENDIENTE" &&
-      Date.now() - o.updatedAt.getTime() > GRACIA_MS,
+    (o) => ORDENES_COMPLETADAS.includes(o.estado) && esImpago(o),
   ).length;
 
   const califDadas = cliente.ordenes

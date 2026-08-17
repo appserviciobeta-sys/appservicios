@@ -32,9 +32,11 @@ export function CompartirUbicacion({ token }: { token: string }) {
     }
   }, []);
 
-  const arrancar = useCallback(() => {
-    if (!navigator.geolocation) return setEstado("NEGADO");
-    setEstado("PIDIENDO");
+  /// Solo engancha el vigilante del GPS. No toca el estado de React: se llama
+  /// desde un efecto, y cambiar estado ahí de forma síncrona dispara renders en
+  /// cascada. Las transiciones ocurren en los callbacks, que son asíncronos.
+  const vigilar = useCallback(() => {
+    if (!navigator.geolocation) return false;
 
     vigilante.current = navigator.geolocation.watchPosition(
       async (posicion) => {
@@ -80,18 +82,22 @@ export function CompartirUbicacion({ token }: { token: string }) {
       },
       { enableHighAccuracy: true, maximumAge: 15_000, timeout: 20_000 },
     );
+    return true;
   }, [token, detener]);
 
   // Cada acción del servidor recarga la página. Sin esto, el profesional
   // tendría que volver a prenderlo tras cada toque.
   useEffect(() => {
-    if (localStorage.getItem(llave(token)) === "si") arrancar();
+    if (localStorage.getItem(llave(token)) === "si") vigilar();
     return detener;
-  }, [token, arrancar, detener]);
+  }, [token, vigilar, detener]);
 
   function prender() {
+    if (!navigator.geolocation) return setEstado("NEGADO");
     localStorage.setItem(llave(token), "si");
-    arrancar();
+    // Cambiar estado desde un manejador de evento sí es correcto.
+    setEstado("PIDIENDO");
+    vigilar();
   }
 
   function apagar() {
