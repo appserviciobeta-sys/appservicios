@@ -20,6 +20,35 @@ async function ordenPorToken(token: string) {
   return orden;
 }
 
+/// El cliente marca dónde queda su casa. Es el único que puede hacerlo bien:
+/// está parado ahí, y ninguna geocodificación de "Cra 5 #12-34 torre B apto
+/// 302" acierta el punto con la precisión que hace falta para decir "faltan
+/// 5 minutos" sin mentir.
+export async function marcarDestino(formData: FormData) {
+  const token = String(formData.get("token"));
+  const lat = Number(formData.get("lat"));
+  const lng = Number(formData.get("lng"));
+  const orden = await ordenPorToken(token);
+
+  if (!Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+    fallar(ruta(token), "No pudimos leer tu ubicación. Revisa el permiso del navegador.");
+  }
+
+  await prisma.serviceOrder.update({
+    where: { id: orden.id },
+    data: { destinoLat: lat, destinoLng: lng },
+  });
+
+  await registrarEvento({
+    entidad: "ServiceOrder",
+    entidadId: orden.id,
+    tipo: "DESTINO_MARCADO",
+    actor: "cliente",
+  });
+
+  redirect(`${ruta(token)}?ok=${encodeURIComponent("Listo. Ya podemos calcular cuánto falta.")}`);
+}
+
 /// §27 — la decisión es del cliente y queda con hora. Aprobar sube el precio
 /// del servicio en el acto; rechazar lo deja como estaba.
 export async function responderCambio(formData: FormData) {

@@ -527,6 +527,13 @@ model ServiceOrder {
   garantiaHasta DateTime?
   notasInternas String    @default("")
 
+  /// Dónde queda la casa. No se geocodifica la dirección: en Colombia las
+  /// direcciones tipo "Cra 5 #12-34 apto 302 torre B" no resuelven bien y una
+  /// coordenada equivocada haría que el trabajo diga "llegó" estando lejos.
+  /// La pone el cliente con un toque desde su pantalla de seguimiento.
+  destinoLat Float?
+  destinoLng Float?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -542,10 +549,44 @@ model ServiceOrder {
   calificaciones Rating[]
   incidentes     Incident[]
   reemplazos     Replacement[]
+  rastro         LocationPing[]
 
   @@index([estado])
   @@index([professionalId])
   @@index([createdAt])
+}
+
+/// Rastro del profesional mientras va en camino.
+///
+/// Tres reglas que no son un detalle técnico sino el trato con el trabajador:
+///
+///  1. Solo se graba entre "voy en camino" y el check-in. Ni antes ni después.
+///     Fuera de esa ventana la app no pide la ubicación y el endpoint la
+///     rechaza, así que no hay forma de seguir a alguien en su tiempo libre.
+///  2. Es opt-in: el profesional aprieta un botón para empezar a compartir, y
+///     puede dejar de hacerlo sin que eso bloquee el trabajo.
+///  3. El cliente NUNCA ve las coordenadas, solo distancia y minutos. Saber que
+///     alguien está "a 2 km" es lo que resuelve la ansiedad de la espera; ver
+///     el punto exacto revela dónde vive o dónde estaba, y eso no le hace falta
+///     a nadie.
+///
+/// Se purga al cerrar la orden: pasado el servicio, el recorrido de una persona
+/// es un dato que no tenemos por qué conservar.
+model LocationPing {
+  id             String @id @default(cuid())
+  serviceOrderId String
+
+  lat Float
+  lng Float
+  /// Precisión que reporta el GPS, en metros. Una lectura de ±2 km es ruido de
+  /// antena y no se debe usar para calcular nada.
+  precisionM Float?
+
+  createdAt DateTime @default(now())
+
+  order ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+
+  @@index([serviceOrderId, createdAt])
 }
 
 /// §27: no debe existir sobrecosto no aprobado. Todo cambio pasa por aquí.

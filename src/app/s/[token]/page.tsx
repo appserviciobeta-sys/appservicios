@@ -4,9 +4,13 @@ import { cop, fecha, fechaHora, minutosATexto } from "@/lib/format";
 import { documentoParcial } from "@/lib/puerta";
 import { urlDeEvidencia, urlsDeEvidencia } from "@/lib/almacenamiento";
 import { Aviso, Badge, Boton, Campo, Mensajes, claseInput } from "@/components/ui";
+import { RefrescoVivo } from "@/components/refresco-vivo";
+import { FormularioGeo } from "@/components/formulario-geo";
+import { calcularLlegada, distanciaATexto, esperaATexto } from "@/lib/rastro";
 import {
   calificarDesdeCliente,
   confirmarServicio,
+  marcarDestino,
   pedirReemplazo,
   responderCambio,
 } from "./acciones";
@@ -53,6 +57,9 @@ export default async function SeguimientoPage({
       cambiosAlcance: { orderBy: { solicitadoAt: "desc" } },
       evidencias: { where: { url: { not: "" } }, orderBy: { createdAt: "desc" } },
       calificaciones: true,
+      // Dos lecturas bastan: la última da la distancia, la anterior da la
+      // velocidad real. Traer el recorrido completo no mejoraría el cálculo.
+      rastro: { orderBy: { createdAt: "desc" }, take: 2 },
     },
   });
 
@@ -72,6 +79,14 @@ export default async function SeguimientoPage({
   const verificadas = (orden.professional?.skills ?? []).filter((s) =>
     ["VERIFICADA", "CERTIFICADA"].includes(s.estado),
   );
+
+  const enTrayecto = orden.estado === "EN_CAMINO";
+  const llegada = enTrayecto
+    ? calcularLlegada({ lat: orden.destinoLat, lng: orden.destinoLng }, orden.rastro)
+    : null;
+  // Se refresca solo mientras algo puede cambiar en minutos. Con el servicio
+  // cerrado, recargar cada treinta segundos gasta datos para nada.
+  const enVivo = ["EN_CAMINO", "EN_SITIO", "EN_EJECUCION"].includes(orden.estado);
 
   return (
     <main className="mx-auto min-h-screen max-w-lg px-5 py-6">
@@ -112,6 +127,70 @@ export default async function SeguimientoPage({
           })}
         </ol>
       </section>
+
+      {enVivo ? <RefrescoVivo segundos={30} /> : null}
+
+      {/* ---- Cuánto falta ---- */}
+      {llegada ? (
+        <section className="mt-6">
+          {llegada.estado === "EN_CAMINO" ? (
+            <div className="ficha border-l-[3px] border-l-sello p-5">
+              <div className="rotulo">Llega en</div>
+              <div className="titular mt-1 text-4xl text-sello">
+                {esperaATexto(llegada.minutos)}
+              </div>
+              <div className="cifra mt-2 text-sm text-tinta-media">
+                a {distanciaATexto(llegada.distanciaM)} de tu dirección
+              </div>
+              <p className="mt-4 text-xs leading-relaxed text-tinta-suave">
+                Es un estimado según cómo va avanzando. El tráfico puede cambiarlo.
+              </p>
+            </div>
+          ) : null}
+
+          {llegada.estado === "LLEGANDO" ? (
+            <div className="ficha border-l-[3px] border-l-sello p-5">
+              <div className="rotulo">Ya casi</div>
+              <div className="titular mt-1 text-4xl text-sello">Está llegando</div>
+              <p className="mt-3 text-sm leading-relaxed text-tinta-media">
+                Está a menos de dos cuadras. Ten a la mano la palabra y el código de abajo.
+              </p>
+            </div>
+          ) : null}
+
+          {llegada.estado === "SIN_SENAL" ? (
+            <div className="ficha p-5">
+              <div className="rotulo">Va en camino</div>
+              <p className="mt-2 text-sm leading-relaxed text-tinta-media">
+                {llegada.ultimaSenalMin == null
+                  ? "Todavía no tenemos señal de su celular, así que no podemos calcular los minutos."
+                  : `Sin señal desde hace ${llegada.ultimaSenalMin} minutos. Puede estar en una zona sin cobertura.`}{" "}
+                Salió {fechaHora(orden.enCaminoAt)}.
+              </p>
+            </div>
+          ) : null}
+
+          {/* Sin el punto de la casa no hay distancia posible. Se pide aquí,
+              que es cuando el dato sirve y el cliente está mirando. */}
+          {llegada.estado === "SIN_DESTINO" ? (
+            <div className="ficha p-5">
+              <div className="rotulo">Va en camino</div>
+              <h2 className="titular mt-1 text-2xl">¿Quieres saber cuánto falta?</h2>
+              <p className="mt-2 text-sm leading-relaxed text-tinta-media">
+                Marca dónde queda tu casa y te mostramos los minutos que faltan. Lo usamos solo
+                para calcular la distancia de este servicio.
+              </p>
+              <FormularioGeo action={marcarDestino} className="mt-4">
+                <input type="hidden" name="token" value={token} />
+                <Boton className="w-full !py-3">Estoy en mi dirección</Boton>
+              </FormularioGeo>
+              <p className="mt-3 text-xs leading-relaxed text-tinta-suave">
+                Salió {fechaHora(orden.enCaminoAt)}.
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {/* ---- Quién va a entrar (§17) ---- */}
       {orden.professional && porLlegar ? (

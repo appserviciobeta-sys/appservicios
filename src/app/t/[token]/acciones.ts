@@ -124,6 +124,15 @@ export async function verificarCodigo(formData: FormData) {
     payload: { verificado: true, gps: gps ?? "sin permiso de ubicación" },
   });
 
+  // Llegó: el recorrido ya no le sirve a nadie y se borra. La constancia de la
+  // llegada queda en checkInAt/checkInLat/checkInLng, que es el único dato que
+  // hace falta guardar.
+  //
+  // Ojo con el caso contrario: si NO hay check-in, el rastro se conserva. Es
+  // justo la situación en que sirve de prueba — "no llegó" contra "sí fui" —
+  // así que desaparece cuando sobra y sobrevive cuando importa.
+  await prisma.locationPing.deleteMany({ where: { serviceOrderId: orden.id } });
+
   redirect(ruta(token));
 }
 

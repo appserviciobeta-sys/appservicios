@@ -13,6 +13,7 @@
         "db:reset": "prisma migrate reset --force",
         "db:studio": "prisma studio",
         "verificar": "tsx scripts/verificar-motores.ts",
+        "verificar-rastro": "tsx scripts/verificar-rastro.ts",
         "probar-db": "tsx scripts/probar-conexion.ts",
         "operador": "tsx scripts/crear-operador.ts",
         "sql-arranque": "tsx scripts/sql-arranque.ts",

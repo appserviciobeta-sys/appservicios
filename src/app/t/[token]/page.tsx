@@ -4,6 +4,7 @@ import { cop, fechaHora, minutosATexto, whatsapp } from "@/lib/format";
 import { urlsDeEvidencia } from "@/lib/almacenamiento";
 import { Aviso, Badge, Boton, Campo, Mensajes, claseInput } from "@/components/ui";
 import { FormularioGeo } from "@/components/formulario-geo";
+import { CompartirUbicacion } from "@/components/compartir-ubicacion";
 import {
   marcarEnCamino,
   pedirCambioAlcance,
@@ -149,14 +150,18 @@ export default async function TrabajoPage({
 
       {/* ---- PASO 2: llegar ---- */}
       {enCamino ? (
-        <section className="mt-5">
-          <FormularioGeo action={registrarLlegada}>
-            <input type="hidden" name="token" value={token} />
-            <Boton className="w-full !py-4 !text-sm">Llegué a la dirección</Boton>
-          </FormularioGeo>
-          <p className="mt-3 text-center text-xs text-tinta-suave">
-            Tomamos tu ubicación para dejar constancia de la llegada.
-          </p>
+        <section className="mt-5 space-y-5">
+          <CompartirUbicacion token={token} />
+
+          <div>
+            <FormularioGeo action={registrarLlegada}>
+              <input type="hidden" name="token" value={token} />
+              <Boton className="w-full !py-4 !text-sm">Llegué a la dirección</Boton>
+            </FormularioGeo>
+            <p className="mt-3 text-center text-xs text-tinta-suave">
+              Tomamos tu ubicación para dejar constancia de la llegada.
+            </p>
+          </div>
         </section>
       ) : null}
 
