@@ -16,6 +16,7 @@
         "verificar-rastro": "tsx scripts/verificar-rastro.ts",
         "verificar-dinero": "tsx scripts/verificar-dinero.ts",
         "verificar-todo": "npm run verificar-rastro && npm run verificar-dinero",
+        "probar-claves": "tsx scripts/probar-claves.ts",
         "probar-db": "tsx scripts/probar-conexion.ts",
         "operador": "tsx scripts/crear-operador.ts",
         "sql-arranque": "tsx scripts/sql-arranque.ts",
