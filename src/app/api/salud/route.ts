@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
+import { operadorActual } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -78,12 +79,33 @@ function revisar(lista: { nombre: string; para: string }[]) {
   });
 }
 
+/**
+ * ¿Quién está preguntando?
+ *
+ * Sin sesión este endpoint solo dice si el sistema está sano y qué variable
+ * falta: lo justo para levantar el despliegue. El detalle (host de la base,
+ * usuario, huellas de contraseña, cuántos administradores hay) queda detrás de
+ * la sesión, porque es justamente el mapa que necesitaría alguien para atacar.
+ *
+ * `operadorActual` revienta si falta AUTH_SECRET, que es precisamente uno de
+ * los casos que este endpoint tiene que poder diagnosticar. De ahí el catch.
+ */
+async function esOperador(): Promise<boolean> {
+  try {
+    return (await operadorActual()) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export async function GET() {
   const obligatorias = revisar(REQUERIDAS);
   const opcionales = revisar(OPCIONALES);
   const faltantes = obligatorias.filter((v) => !v.definida).map((v) => v.variable);
+  const autenticado = await esOperador();
 
-  let baseDatos: Record<string, unknown> = { estado: "no se intentó" };
+  let estado = "no se intentó";
+  let detalleBase: Record<string, unknown> = {};
 
   if (faltantes.length === 0) {
     try {
@@ -103,27 +125,34 @@ export async function GET() {
         operadores = { tabla: "NO EXISTE", queHacer: "Corre el bloque CREATE TABLE en Supabase" };
       }
 
-      baseDatos = { estado: "conecta", categorias, servicios, operadores };
+      estado = "conecta";
+      detalleBase = { categorias, servicios, operadores };
     } catch (e) {
-      baseDatos = {
-        estado: "falla",
-        detalle: e instanceof Error ? e.message.slice(0, 300) : String(e),
-      };
+      estado = "falla";
+      // El mensaje de Postgres puede incluir la cadena de conexión.
+      detalleBase = { detalle: e instanceof Error ? e.message.slice(0, 300) : String(e) };
     }
-  } else {
-    baseDatos = { estado: "no se intentó", motivo: `faltan variables: ${faltantes.join(", ")}` };
   }
 
-  const sano = faltantes.length === 0 && baseDatos.estado === "conecta";
+  const sano = faltantes.length === 0 && estado === "conecta";
+
+  const publico = {
+    sano,
+    queHacer: sano
+      ? "Todo en orden."
+      : faltantes.length > 0
+        ? `Faltan variables de entorno: ${faltantes.join(", ")}. Agrégalas en Vercel y redespliega.`
+        : "Las variables están, pero la base no responde. Entra al panel y vuelve a consultar para ver el detalle.",
+    entorno: process.env.VERCEL_ENV ?? "local",
+  };
+
+  if (!autenticado) {
+    return NextResponse.json(publico, { status: sano ? 200 : 503 });
+  }
 
   return NextResponse.json(
     {
-      sano,
-      queHacer: sano
-        ? "Todo en orden."
-        : faltantes.length > 0
-          ? `Agrega en Vercel → Settings → Environment Variables: ${faltantes.join(", ")}. Luego Redeploy.`
-          : "Las variables están, pero la base no responde. Revisa el detalle de abajo.",
+      ...publico,
       obligatorias,
       opcionales,
       conexion: {
@@ -131,8 +160,7 @@ export async function GET() {
         DIRECT_URL: radiografia(process.env.DIRECT_URL),
       },
       acceso: revisarAcceso(),
-      baseDatos,
-      entorno: process.env.VERCEL_ENV ?? "local",
+      baseDatos: { estado, ...detalleBase },
     },
     { status: sano ? 200 : 503 },
   );
